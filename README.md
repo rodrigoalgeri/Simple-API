@@ -1,180 +1,176 @@
-# Simple-API
+# Simple API de Pedidos
 
-API simples em Node.js para gerenciar pedidos (CRUD) com transformação de dados, validação e armazenamento em MongoDB ou memória.
+API REST em Node.js/Express para gerenciar pedidos (CRUD), com persistência em SQLite, autenticação JWT e documentação via Swagger.
 
-## Visão Geral
-- Stack: Node.js, Express, Joi, Mongoose
-- Persistência: MongoDB (quando `MONGODB_URI` está definido) ou memória (fallback automático)
-- Endpoints:
-  - `POST /order` cria novo pedido
-  - `GET /order/:orderId` obtém um pedido
-  - `GET /order/list` lista pedidos
-  - `PUT /order/:orderId` atualiza um pedido
-  - `DELETE /order/:orderId` remove um pedido
-- Transformação de payload conforme especificado no desafio
+## Sumário
+- [Tecnologias](#tecnologias)
+- [Requisitos](#requisitos)
+- [Instalação](#instalação)
+- [Execução](#execução)
+- [Variáveis de Ambiente](#variáveis-de-ambiente)
+- [Modelo de Dados](#modelo-de-dados)
+- [Transformação de Payload](#transformação-de-payload)
+- [Endpoints](#endpoints)
+- [Autenticação](#autenticação)
+- [Swagger](#swagger)
+- [Erros e Respostas](#erros-e-respostas)
+- [Convenções de Commit](#convenções-de-commit)
+- [Licença](#licença)
+
+## Tecnologias
+- Node.js 18+
+- Express 4
+- SQLite3
+- Joi (validação)
+- JWT (autenticação)
+- Swagger UI
 
 ## Requisitos
-- Node.js 18+
-- Opcional: MongoDB (Atlas ou local)
+- Node.js instalado
+- Git instalado
 
-## Instalação e Execução
+## Instalação
 ```bash
 npm install
-# memória (sem MongoDB):
+```
+
+## Execução
+- Ambiente local padrão usa `PORT=3000` (configurado no `.env`).
+- Iniciar o servidor:
+```bash
 npm start
-# com MongoDB:
-# crie .env com PORT e MONGODB_URI
-npm start
 ```
+- Health-check: `GET http://localhost:3000/health`
 
-Exemplo `.env`:
-```env
-PORT=3000
-MONGODB_URI=mongodb+srv://user:password@cluster/dbname?retryWrites=true&w=majority
-```
+## Variáveis de Ambiente
+Crie um arquivo `.env` (não é commitado) com:
 
-Status raiz:
-```text
-GET /
-{"status":"ok","endpoints":["POST /order","GET /order/:orderId","GET /order/list","PUT /order/:orderId","DELETE /order/:orderId"]}
-```
+| Variável       | Padrão              | Descrição                              |
+|----------------|---------------------|----------------------------------------|
+| `PORT`         | `3000`              | Porta do servidor HTTP                 |
+| `DB_FILE`      | `./data/orders.db`  | Caminho do arquivo SQLite              |
+| `JWT_SECRET`   | `super-secret-dev`  | Segredo para assinar tokens JWT        |
+| `AUTH_USER`    | `admin`             | Usuário fixo para login                |
+| `AUTH_PASSWORD`| `secret`            | Senha fixa para login                  |
 
-## Mapeamento de Dados
-Entrada (payload de criação):
+## Modelo de Dados
+SQLite com duas tabelas:
+
+- `Order`:
+  - `orderId` (TEXT, PK)
+  - `value` (INTEGER)
+  - `creationDate` (TEXT ISO)
+- `Items`:
+  - `id` (INTEGER, PK autoincrement)
+  - `orderId` (TEXT, FK -> `Order(orderId)` com `ON DELETE CASCADE`)
+  - `productId` (INTEGER)
+  - `quantity` (INTEGER)
+  - `price` (INTEGER)
+
+## Transformação de Payload
+Entrada (exemplo):
 ```json
 {
   "numeroPedido": "v10089015vdb-01",
   "valorTotal": 10000,
   "dataCriacao": "2023-07-19T12:24:11.5299601+00:00",
   "items": [
-    {
-      "idItem": "2434",
-      "quantidadeItem": 1,
-      "valorItem": 1000
-    }
+    { "idItem": "2434", "quantidadeItem": 1, "valorItem": 1000 }
   ]
 }
 ```
-Transformação aplicada:
+Transformação para persistência:
 ```json
 {
   "orderId": "v10089015vdb",
   "value": 10000,
   "creationDate": "2023-07-19T12:24:11.529Z",
   "items": [
-    {
-      "productId": 2434,
-      "quantity": 1,
-      "price": 1000
-    }
+    { "productId": 2434, "quantity": 1, "price": 1000 }
   ]
 }
 ```
-Implementação do mapeamento: `src/utils/mapOrder.js:13`
+Regra: `orderId` é a parte anterior ao sufixo após `-` (ex.: `v10089015vdb-01` → `v10089015vdb`).
 
-## Validação
-- `Joi` valida o payload:
-  - `numeroPedido`: string obrigatória
-  - `valorTotal`: número obrigatório
-  - `dataCriacao`: ISO date obrigatória
-  - `items`: array de itens com `idItem`, `quantidadeItem`, `valorItem` obrigatórios
-- Validação em: `src/controllers/orderController.js:5`
+## Endpoints
+Base URL: `http://localhost:3000`
 
-## Tratamento de Erros
-- Middleware global retorna JSON consistente (500 quando inesperado)
-- Erros de validação: 400 com `details`
-- Duplicidade de pedido: 409
-- Não encontrado: 404
-- Middleware: `src/middleware/errorHandler.js:1`
+- Criar pedido (JWT): `POST /order`
+- Obter pedido: `GET /order/:orderId`
+- Listar pedidos: `GET /order/list`
+- Atualizar pedido (JWT): `PUT /order/:orderId`
+- Deletar pedido (JWT): `DELETE /order/:orderId`
 
-## Códigos HTTP
-- 201 criação
-- 200 leitura/lista/atualização
-- 204 deleção
-- 400 payload inválido
-- 404 não encontrado
-- 409 duplicado
-- 500 erro interno
-
-## Endpoints e Exemplos
-### Criar pedido
+### Exemplo com curl
+Obter token:
 ```bash
-curl.exe -i -s -X POST http://localhost:3000/order \
+curl -s -X POST http://localhost:3000/login \
   -H "Content-Type: application/json" \
-  --data '{
+  -d '{"username":"admin","password":"secret"}'
+```
+Criar pedido:
+```bash
+curl -s -X POST http://localhost:3000/order \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{
     "numeroPedido": "v10089015vdb-01",
     "valorTotal": 10000,
     "dataCriacao": "2023-07-19T12:24:11.5299601+00:00",
-    "items": [ { "idItem": "2434", "quantidadeItem": 1, "valorItem": 1000 } ]
+    "items": [
+      { "idItem": "2434", "quantidadeItem": 1, "valorItem": 1000 }
+    ]
   }'
 ```
-PowerShell:
-```powershell
-$body = @{ numeroPedido="v10089015vdb-01"; valorTotal=10000; dataCriacao="2023-07-19T12:24:11.5299601+00:00"; items=@(@{ idItem="2434"; quantidadeItem=1; valorItem=1000 }) } | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Method Post -Uri http://localhost:3000/order -ContentType 'application/json' -Body $body
-```
-
-### Obter pedido
+Obter pedido:
 ```bash
-curl.exe -i -s http://localhost:3000/order/v10089015vdb
+curl -s http://localhost:3000/order/v10089015vdb
 ```
-
-### Listar pedidos
+Listar pedidos:
 ```bash
-curl.exe -i -s http://localhost:3000/order/list
+curl -s http://localhost:3000/order/list
 ```
-
-### Atualizar pedido
-```powershell
-$body = @{ numeroPedido="v10089015vdb-01"; valorTotal=12000; dataCriacao="2023-07-20T10:00:00.000Z"; items=@(@{ idItem="2434"; quantidadeItem=2; valorItem=1500 }) } | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Method Put -Uri http://localhost:3000/order/v10089015vdb -ContentType 'application/json' -Body $body
-```
-
-### Deletar pedido
+Atualizar pedido:
 ```bash
-curl.exe -i -s -X DELETE http://localhost:3000/order/v10089015vdb
+curl -s -X PUT http://localhost:3000/order/v10089015vdb \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{
+    "numeroPedido": "v10089015vdb-01",
+    "valorTotal": 12000,
+    "dataCriacao": "2023-07-19T12:24:11.5299601+00:00",
+    "items": [
+      { "idItem": "2434", "quantidadeItem": 2, "valorItem": 6000 }
+    ]
+  }'
+```
+Deletar pedido:
+```bash
+curl -s -X DELETE http://localhost:3000/order/v10089015vdb \
+  -H "Authorization: Bearer <TOKEN>" -I
 ```
 
-## Persistência
-- Memória: usada automaticamente quando `MONGODB_URI` não está definido (útil para testes locais).
-- MongoDB: usar `MONGODB_URI` para persistência real.
-- Modelo: `src/models/Order.js:12`
-- Repositório com fallback: `src/repository/orderRepository.js:5`
+## Autenticação
+- `POST /login` retorna `{ token }` ao enviar credenciais válidas (`AUTH_USER`/`AUTH_PASSWORD`).
+- Use `Authorization: Bearer <token>` nas rotas protegidas (`POST/PUT/DELETE`).
 
-## Estrutura do Projeto
-```
-src/
-  controllers/        # lógica de endpoints
-  db/                 # conexão Mongo
-  middleware/         # tratamento de erros
-  models/             # schemas Mongoose
-  repository/         # acesso a dados (Mongo/memória)
-  routes/             # rotas Express
-  utils/              # transformação de dados
-```
+## Swagger
+- Interface: `http://localhost:3000/docs`
+- Inclui schemas de payload de entrada e modelo persistido, além de segurança Bearer configurada.
 
-## Critérios de Avaliação (atendidos)
-- Funcionalidade completa dos requisitos mínimos (CRUD e transformação)
-- Código organizado, validação e tratamento de erros compreensíveis
-- Convenções de nomenclatura adequadas
-- Respostas HTTP corretas por operação
-- Código hospedado em repositório público com commit organizado
+## Erros e Respostas
+- `400` Payload inválido (validação `joi`).
+- `409` Conflito: `orderId` já existe.
+- `404` Não encontrado em `GET/PUT/DELETE` conforme aplicável.
+- `204` Deleção sem conteúdo.
+- `500` Erro interno não mapeado.
 
-## Recursos Adicionais (opcional)
-- Autenticação básica com JWT (sugestão):
-  - Adicionar middleware que valide `Authorization: Bearer <token>` nas rotas de escrita.
-  - Rotas de leitura podem permanecer públicas.
-- Documentação com Swagger ou Postman:
-  - Adicionar `swagger.json`/`swagger.yaml` em `docs/` e expor `GET /docs`.
-  - Alternativamente, fornecer uma coleção Postman.
+## Convenções de Commit
+- Estilo recomendado: Conventional Commits
+  - `feat: ...` novas funcionalidades
+  - `fix: ...` correções
+  - `docs: ...` documentação
+  - `refactor: ...` refatorações
 
-## Links
-- GitHub: https://github.com/rodrigoalgeri/Simple-API
-
-## Referências de Código
-- Rotas: `src/routes/orderRoutes.js:6`
-- Controller (CRUD): `src/controllers/orderController.js:21`, `47`, `58`, `67`, `86`
-- Transformação: `src/utils/mapOrder.js:13`
-- Repositório: `src/repository/orderRepository.js:9`, `20`, `28`, `35`, `51`
-- Modelo: `src/models/Order.js:12`
-- Server/bootstrap: `src/server.js:7`
+## Licença
+MIT. Veja detalhes no repositório.
