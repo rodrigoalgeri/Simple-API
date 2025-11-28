@@ -1,0 +1,142 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "API Simple - Pedidos",
+    "version": "1.0.0",
+    "description": "API para criar, ler, atualizar e excluir pedidos com SQLite"
+  },
+  "servers": [{ "url": "http://localhost:3000" }],
+  "paths": {
+    "/order": {
+      "post": {
+        "summary": "Criar novo pedido",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pedido criado",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Order" }
+              }
+            }
+          },
+          "400": { "description": "Payload inválido" },
+          "500": { "description": "Erro interno" }
+        }
+      }
+    },
+    "/order/{orderId}": {
+      "get": {
+        "summary": "Obter pedido por ID",
+        "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Pedido encontrado", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "404": { "description": "Pedido não encontrado" },
+          "500": { "description": "Erro interno" }
+        }
+      },
+      "put": {
+        "summary": "Atualizar pedido por ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateOrderPayload" } } }
+        },
+        "responses": {
+          "200": { "description": "Pedido atualizado", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "400": { "description": "Payload inválido" },
+          "500": { "description": "Erro interno" }
+        }
+      },
+      "delete": {
+        "summary": "Deletar pedido por ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Sem conteúdo (deletado)" },
+          "404": { "description": "Pedido não encontrado" },
+          "500": { "description": "Erro interno" }
+        }
+      }
+    },
+    "/order/list": {
+      "get": {
+        "summary": "Listar todos os pedidos",
+        "responses": {
+          "200": { "description": "Lista de pedidos", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Order" } } } } },
+          "500": { "description": "Erro interno" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "CreateOrderPayload": {
+        "type": "object",
+        "properties": {
+          "numeroPedido": { "type": "string", "example": "v10089015vdb-01" },
+          "valorTotal": { "type": "integer", "example": 10000 },
+          "dataCriacao": { "type": "string", "format": "date-time", "example": "2023-07-19T12:24:11.5299601+00:00" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "idItem": { "type": "string", "example": "2434" },
+                "quantidadeItem": { "type": "integer", "example": 1 },
+                "valorItem": { "type": "integer", "example": 1000 }
+              },
+              "required": ["idItem", "quantidadeItem", "valorItem"]
+            }
+          }
+        },
+        "required": ["numeroPedido", "valorTotal", "dataCriacao", "items"]
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "orderId": { "type": "string", "example": "v10089016vdb" },
+          "value": { "type": "integer", "example": 10000 },
+          "creationDate": { "type": "string", "format": "date-time", "example": "2023-07-19T12:24:11.529Z" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": { "type": "integer", "example": 2434 },
+                "quantity": { "type": "integer", "example": 1 },
+                "price": { "type": "integer", "example": 1000 }
+              },
+              "required": ["productId", "quantity", "price"]
+            }
+          }
+        },
+        "required": ["orderId", "value", "creationDate", "items"]
+      }
+    }
+  }
+}
